@@ -1,75 +1,559 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url = env("DATABASE_URL")
 }
-
 model User {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
-  name     String
-  image    String?
-  email    String   @unique
-  emailVerified DateTime?
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  email String @unique
+  image String?
+  emailVerified DateTime? @db.Timestamptz(6)
   hashedPassword String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  favoritesIds String[] @db.ObjectId
-  sessions Session[]
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
   accounts Account[]
+  sessions Session[]
+  memberships Membership[]
+  favorites Favorite[]
+  responsibilities ItemResponsible[]
+  descriptionRevisions VersionDescriptionRevision[]
+  memoRevisions MemoRevision[]
+  @@map("users")
 }
-
 model Account {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId   String @db.ObjectId
-  type     String
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  type String
   provider String
   providerAccountId String
-  refresh_token String? @db.String
-  access_token String? @db.String
-  expires_at Int? 
+  refresh_token String?
+  access_token String?
+  expires_at Int?
   token_type String?
   scope String?
-  id_token String? @db.String
+  id_token String?
   session_state String?
- user User @relation(fields: [userId], references: [id], onDelete: Cascade)
- @@unique([provider, providerAccountId])
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@unique([provider,providerAccountId])
+  @@map("accounts")
 }
-
 model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(uuid()) @db.Uuid
   sessionToken String @unique
-  userId       String @db.ObjectId
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String @db.Uuid
+  expires DateTime @db.Timestamptz(6)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@map("sessions")
 }
-
 model VerificationToken {
-   id           String   @id @default(auto()) @map("_id") @db.ObjectId
-   identifier   String
-   token        String @unique
-   expires      DateTime
-
-   @@unique([identifier, token])
-
+  identifier String
+  token String @unique
+  expires DateTime @db.Timestamptz(6)
+  @@unique([identifier,token])
+  @@map("verification_tokens")
 }
-
-model Movie {
-     id          String @id @default(auto()) @map("_id") @db.ObjectId
-      title        String
-     description  String
-      videoUrl        String
-      thumbnailUrl String
-      genre        String
-      duration    String
+model Team {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  members Membership[]
+  projects ProductionProject[]
+  roots StorageRoot[]
+  categories Category[]
+  facilities Facility[]
+  keywords Keyword[]
+  @@map("teams")
+}
+model Membership {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  userId String @db.Uuid
+  role String @default("VIEWER")
+  canDownload Boolean @default(true)
+  team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+  user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  projectAccess ProjectAccess[]
+  @@unique([teamId,userId])
+  @@unique([teamId,id])
+  @@map("memberships")
+}
+model ProductionProject {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  title String
+  description String @default("")
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+  access ProjectAccess[]
+  items ArchiveItem[]
+  @@unique([teamId,id])
+  @@index([teamId,createdAt])
+  @@map("production_projects")
+}
+model ProjectAccess {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  projectId String @db.Uuid
+  membershipId String @db.Uuid
+  canEdit Boolean @default(false)
+  canDelete Boolean @default(false)
+  canDownload Boolean @default(true)
+  project ProductionProject @relation(fields:[teamId,projectId],references:[teamId,id],onDelete:Restrict)
+  membership Membership @relation(fields:[teamId,membershipId],references:[teamId,id],onDelete:Restrict)
+  @@unique([projectId,membershipId])
+  @@map("project_access")
+}
+model Category {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  name String
+  team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+  items ArchiveItem[]
+  @@unique([teamId,name])
+  @@unique([teamId,id])
+  @@map("categories")
+}
+model Facility {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  name String
+  team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+  items ItemFacility[]
+  @@unique([teamId,name])
+  @@unique([teamId,id])
+  @@map("facilities")
+}
+model Keyword {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  name String
+  team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+  items ItemKeyword[]
+  @@unique([teamId,name])
+  @@unique([teamId,id])
+  @@map("keywords")
+}
+model ArchiveItem {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  projectId String @db.Uuid
+  kind String
+  roles String[]
+  title String
+  broadcastTitle String @default("")
+  broadcastYear Int? @db.SmallInt
+  categoryId String? @db.Uuid
+  description String @default("")
+  currentVersionId String? @unique @db.Uuid
+  revision Int @default(1)
+  nextVersionNo BigInt @default(1)
+  lifecycle String @default("ACTIVE")
+  managedIndependently Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  project ProductionProject @relation(fields:[teamId,projectId],references:[teamId,id],onDelete:Restrict)
+  category Category? @relation(fields:[teamId,categoryId],references:[teamId,id],onDelete:Restrict)
+  versions ItemVersion[] @relation("ItemVersions")
+  currentVersion ItemVersion? @relation("CurrentVersion",fields:[id,currentVersionId],references:[itemId,id],onDelete:Restrict)
+  keywords ItemKeyword[]
+  facilities ItemFacility[]
+  responsibles ItemResponsible[]
+  favorites Favorite[]
+  revisions MetadataRevision[]
+  @@unique([id,currentVersionId])
+  @@unique([teamId,id])
+  @@index([teamId,kind,broadcastYear(sort:Desc),id(sort:Desc)])
+  @@index([projectId,lifecycle])
+  @@map("archive_items")
+}
+model ItemKeyword {
+  teamId String @db.Uuid
+  itemId String @db.Uuid
+  keywordId String @db.Uuid
+  item ArchiveItem @relation(fields:[teamId,itemId],references:[teamId,id],onDelete:Restrict)
+  keyword Keyword @relation(fields:[teamId,keywordId],references:[teamId,id],onDelete:Restrict)
+  @@id([itemId,keywordId])
+  @@map("item_keywords")
+}
+model ItemFacility {
+  teamId String @db.Uuid
+  itemId String @db.Uuid
+  facilityId String @db.Uuid
+  item ArchiveItem @relation(fields:[teamId,itemId],references:[teamId,id],onDelete:Restrict)
+  facility Facility @relation(fields:[teamId,facilityId],references:[teamId,id],onDelete:Restrict)
+  @@id([itemId,facilityId])
+  @@map("item_facilities")
+}
+model ItemResponsible {
+  teamId String @db.Uuid
+  itemId String @db.Uuid
+  userId String @db.Uuid
+  item ArchiveItem @relation(fields:[teamId,itemId],references:[teamId,id],onDelete:Restrict)
+  user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  @@id([itemId,userId])
+  @@map("item_responsibles")
+}
+model ItemVersion {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  itemId String @db.Uuid
+  versionNo BigInt?
+  baseVersionId String? @db.Uuid
+  state String @default("DRAFT")
+  technicalMetadata Json @default("{}") @db.JsonB
+  description String @default("")
+  descriptionRevision Int @default(1)
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  item ArchiveItem @relation("ItemVersions",fields:[teamId,itemId],references:[teamId,id],onDelete:Restrict)
+  representativeOf ArchiveItem? @relation("CurrentVersion")
+  base ItemVersion? @relation("VersionBase",fields:[itemId,baseVersionId],references:[itemId,id],onDelete:Restrict)
+  descendants ItemVersion[] @relation("VersionBase")
+  archive ArchiveVersion?
+  outgoing ItemLink[] @relation("LinkFrom")
+  incoming ItemLink[] @relation("LinkTo")
+  memos Memo[]
+  unreal UnrealArchiveProfile?
+  previews PreviewDerivative[]
+  descriptionRevisions VersionDescriptionRevision[]
+  @@unique([itemId,id])
+  @@unique([teamId,id])
+  @@unique([itemId,versionNo])
+  @@map("item_versions")
+}
+model ItemLink {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  fromVersionId String @db.Uuid
+  toVersionId String @db.Uuid
+  relation String @default("ASSOCIATED")
+  evidence String @default("")
+  confirmedBy String? @db.Uuid
+  confirmedAt DateTime? @db.Timestamptz(6)
+  active Boolean @default(true)
+  from ItemVersion @relation("LinkFrom",fields:[teamId,fromVersionId],references:[teamId,id],onDelete:Restrict)
+  to ItemVersion @relation("LinkTo",fields:[teamId,toVersionId],references:[teamId,id],onDelete:Restrict)
+  @@unique([fromVersionId,toVersionId])
+  @@index([toVersionId,active])
+  @@map("item_links")
+}
+model Memo {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  versionId String @db.Uuid
+  authorId String @db.Uuid
+  authorName String
+  body String
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime? @db.Timestamptz(6)
+  version ItemVersion @relation(fields:[teamId,versionId],references:[teamId,id],onDelete:Restrict)
+  revisions MemoRevision[]
+  @@index([versionId,createdAt])
+  @@map("memos")
+}
+model MetadataRevision {
+  id String @id @default(uuid()) @db.Uuid
+  itemId String @db.Uuid
+  actorId String @db.Uuid
+  revision Int
+  snapshot Json @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  item ArchiveItem @relation(fields:[itemId],references:[id],onDelete:Restrict)
+  @@unique([itemId,revision])
+  @@map("item_metadata_revisions")
+}
+model StorageRoot {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  name String
+  kind String
+  path String
+  state String @default("ONLINE")
+  checkedAt DateTime? @db.Timestamptz(6)
+  team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+  objects StorageObject[]
+  @@unique([teamId,id])
+  @@unique([teamId,name])
+  @@map("storage_roots")
+}
+model StorageObject {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  rootId String @db.Uuid
+  objectKey String
+  sizeBytes BigInt
+  checksum String
+  state String @default("AVAILABLE")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  verifiedAt DateTime? @db.Timestamptz(6)
+  root StorageRoot @relation(fields:[teamId,rootId],references:[teamId,id],onDelete:Restrict)
+  files ArchiveFile[]
+  manifests ArchiveVersion[] @relation("Manifest")
+  previews PreviewDerivative[]
+  leases FileLease[]
+  @@unique([rootId,objectKey])
+  @@unique([teamId,id])
+  @@index([teamId,state,verifiedAt])
+  @@map("storage_objects")
+}
+model ArchiveVersion {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  itemVersionId String @unique @db.Uuid
+  planId String @db.Uuid
+  manifestObjectId String? @db.Uuid
+  manifestHash String?
+  fileCount Int @default(0)
+  totalBytes BigInt @default(0)
+  state String @default("PREPARING")
+  verifiedAt DateTime? @db.Timestamptz(6)
+  version ItemVersion @relation(fields:[teamId,itemVersionId],references:[teamId,id],onDelete:Restrict)
+  manifest StorageObject? @relation("Manifest",fields:[teamId,manifestObjectId],references:[teamId,id],onDelete:Restrict)
+  files ArchiveFile[]
+  validations RestoreValidation[]
+  @@unique([teamId,itemVersionId])
+  @@unique([teamId,id])
+  @@map("archive_versions")
+}
+model ArchiveFile {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  archiveVersionId String @db.Uuid
+  relativePath String
+  canonicalPath String
+  storageObjectId String @db.Uuid
+  sizeBytes BigInt
+  checksum String
+  mime String @default("application/octet-stream")
+  active Boolean @default(true)
+  archive ArchiveVersion @relation(fields:[teamId,archiveVersionId],references:[teamId,id],onDelete:Restrict)
+  object StorageObject @relation(fields:[teamId,storageObjectId],references:[teamId,id],onDelete:Restrict)
+  @@unique([archiveVersionId,canonicalPath])
+  @@index([storageObjectId,active])
+  @@map("archive_files")
+}
+model FileLease {
+  id String @id @default(uuid()) @db.Uuid
+  objectId String @db.Uuid
+  owner String
+  expiresAt DateTime @db.Timestamptz(6)
+  object StorageObject @relation(fields:[objectId],references:[id],onDelete:Restrict)
+  @@index([objectId,expiresAt])
+  @@map("file_leases")
+}
+model ArchivePlan {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  actorId String @db.Uuid
+  batchId String? @db.Uuid
+  baseVersionId String? @db.Uuid
+  revision Int @default(1)
+  policyVersion String @default("ue-cache-only-v1")
+  hash String
+  state String @default("REVIEW")
+  summary Json @db.JsonB
+  entries PlanEntry[]
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@map("archive_plans")
+}
+model PlanEntry {
+  id String @id @default(uuid()) @db.Uuid
+  planId String @db.Uuid
+  relativePath String
+  canonicalPath String
+  decision String
+  reason String
+  action String
+  sizeBytes BigInt
+  resolution String?
+  sourceMtime String?
+  plan ArchivePlan @relation(fields:[planId],references:[id],onDelete:Restrict)
+  @@unique([planId,canonicalPath])
+  @@map("plan_entries")
+}
+model UploadBatch {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  actorId String @db.Uuid
+  requestKey String
+  inputHash String
+  payload Json @db.JsonB
+  state String @default("UPLOADING")
+  result Json? @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  sessions UploadSession[]
+  @@unique([teamId,actorId,requestKey])
+  @@index([state,expiresAt])
+  @@map("upload_batches")
+}
+model UploadSession {
+  id String @id @default(uuid()) @db.Uuid
+  batchId String @db.Uuid
+  itemId String @db.Uuid
+  relativePath String
+  canonicalPath String
+  sizeBytes BigInt
+  mime String
+  checksum String?
+  state String @default("UPLOADING")
+  objectId String? @db.Uuid
+  batch UploadBatch @relation(fields:[batchId],references:[id],onDelete:Restrict)
+  parts UploadPart[]
+  @@unique([batchId,itemId,canonicalPath])
+  @@map("upload_sessions")
+}
+model UploadPart {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String @db.Uuid
+  partNo Int
+  sizeBytes Int
+  checksum String
+  session UploadSession @relation(fields:[sessionId],references:[id],onDelete:Restrict)
+  @@unique([sessionId,partNo])
+  @@map("upload_parts")
+}
+model UnrealArchiveProfile {
+  id String @id @default(uuid()) @db.Uuid
+  versionId String @unique @db.Uuid
+  uprojectPath String
+  engineVersion String @default("")
+  environment Json @db.JsonB
+  schemaVersion Int @default(1)
+  validationStatus String @default("NOT_TESTED")
+  version ItemVersion @relation(fields:[versionId],references:[id],onDelete:Restrict)
+  @@map("unreal_archive_profiles")
+}
+model PreviewDerivative {
+  id String @id @default(uuid()) @db.Uuid
+  versionId String @db.Uuid
+  type String
+  objectId String? @db.Uuid
+  state String @default("PENDING")
+  error String?
+  metadata Json @default("{}") @db.JsonB
+  version ItemVersion @relation(fields:[versionId],references:[id],onDelete:Restrict)
+  object StorageObject? @relation(fields:[objectId],references:[id],onDelete:Restrict)
+  @@unique([versionId,type])
+  @@map("preview_derivatives")
+}
+model Job {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  actorId String @db.Uuid
+  type String
+  targetId String @db.Uuid
+  state String @default("QUEUED")
+  input Json @default("{}") @db.JsonB
+  progress Json @default("{}") @db.JsonB
+  result Json? @db.JsonB
+  error String?
+  leaseOwner String?
+  leaseUntil DateTime? @db.Timestamptz(6)
+  fence Int @default(0)
+  attempts Int @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  events JobEvent[]
+  @@index([state,type,createdAt])
+  @@map("jobs")
+}
+model AuditEvent {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  actorId String @db.Uuid
+  action String
+  targetId String @db.Uuid
+  detail Json @default("{}") @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([teamId,createdAt])
+  @@map("audit_events")
+}
+model DeleteRequest {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  actorId String @db.Uuid
+  itemId String @db.Uuid
+  requestKey String?
+  scope String
+  hash String
+  plan Json @db.JsonB
+  state String @default("PLANNED")
+  startedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  entries DeleteEntry[]
+  @@unique([teamId,actorId,requestKey])
+  @@map("delete_requests")
+}
+model DeleteEntry {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @db.Uuid
+  objectId String @db.Uuid
+  state String @default("PENDING")
+  reason String?
+  purgedAt DateTime? @db.Timestamptz(6)
+  request DeleteRequest @relation(fields:[requestId],references:[id],onDelete:Restrict)
+  @@unique([requestId,objectId])
+  @@map("delete_entries")
+}
+model RestoreValidation {
+  id String @id @default(uuid()) @db.Uuid
+  archiveId String @db.Uuid
+  actorId String @db.Uuid
+  environment Json @db.JsonB
+  state String @default("NOT_TESTED")
+  report String @default("")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  archive ArchiveVersion @relation(fields:[archiveId],references:[id],onDelete:Restrict)
+  @@map("restore_validations")
+}
+model Favorite {
+  userId String @db.Uuid
+  itemId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  item ArchiveItem @relation(fields:[itemId],references:[id],onDelete:Restrict)
+  @@id([userId,itemId])
+  @@map("favorites")
+}
+model VersionDescriptionRevision {
+  id String @id @default(uuid()) @db.Uuid
+  teamId String @db.Uuid
+  versionId String @db.Uuid
+  actorId String @db.Uuid
+  revision Int
+  body String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  version ItemVersion @relation(fields:[teamId,versionId],references:[teamId,id],onDelete:Restrict)
+  actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+  @@unique([versionId,revision])
+  @@map("version_description_revisions")
+}
+model MemoRevision {
+  id String @id @default(uuid()) @db.Uuid
+  memoId String @db.Uuid
+  actorId String @db.Uuid
+  revision Int
+  body String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  memo Memo @relation(fields:[memoId],references:[id],onDelete:Restrict)
+  actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+  @@unique([memoId,revision])
+  @@map("memo_revisions")
+}
+model JobEvent {
+  id String @id @default(uuid()) @db.Uuid
+  jobId String @db.Uuid
+  kind String
+  message String @default("")
+  data Json @default("{}") @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  job Job @relation(fields:[jobId],references:[id],onDelete:Restrict)
+  @@index([jobId,createdAt])
+  @@map("job_events")
 }

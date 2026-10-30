@@ -1,0 +1,35 @@
+-- v6.1 NFR-07: 상태·종류 열을 서비스 코드뿐 아니라 DB CHECK로도 제한한다.
+-- 이후 단계에서 쓰는 상태(EXPIRED·ABANDONED·CORRUPT·MISSING·OFFLINE·USED_CONFIRMED·MAINTENANCE)도 미리 허용한다.
+ALTER TABLE "jobs" ADD CONSTRAINT "job_type" CHECK ("type" IN ('COMMIT','PREVIEW','DELETE','DOWNLOAD','SCAN','IMPORT','RESTORE','MAINTENANCE'));
+ALTER TABLE "jobs" ADD CONSTRAINT "job_state" CHECK ("state" IN ('QUEUED','RUNNING','WAITING','COMPLETED','FAILED','CANCELLED'));
+ALTER TABLE "jobs" ADD CONSTRAINT "job_json" CHECK (jsonb_typeof("input")='object' AND jsonb_typeof("progress")='object' AND ("result" IS NULL OR jsonb_typeof("result") IN ('object','array')));
+ALTER TABLE "upload_batches" ADD CONSTRAINT "batch_state" CHECK ("state" IN ('UPLOADING','QUEUED','COMMITTING','COMMITTED','FAILED','CANCELLED','EXPIRED'));
+ALTER TABLE "upload_batches" ADD CONSTRAINT "batch_payload" CHECK (jsonb_typeof("payload")='object');
+ALTER TABLE "upload_sessions" ADD CONSTRAINT "session_state" CHECK ("state" IN ('UPLOADING','RECEIVED','SKIPPED','COMMITTED','CANCELLED','EXPIRED'));
+ALTER TABLE "upload_sessions" ADD CONSTRAINT "session_checksum" CHECK ("checksum" IS NULL OR "checksum" ~ '^[0-9a-f]{64}$');
+ALTER TABLE "upload_parts" ADD CONSTRAINT "part_checksum" CHECK ("checksum" ~ '^[0-9a-f]{64}$');
+ALTER TABLE "storage_objects" ADD CONSTRAINT "object_state" CHECK ("state" IN ('STAGING','AVAILABLE','PURGING','PURGED','CORRUPT','MISSING'));
+ALTER TABLE "storage_roots" ADD CONSTRAINT "root_kind" CHECK ("kind" IN ('ARCHIVE','STAGING','PREVIEW','SOURCE'));
+ALTER TABLE "storage_roots" ADD CONSTRAINT "root_state" CHECK ("state" IN ('ONLINE','OFFLINE'));
+ALTER TABLE "item_versions" ADD CONSTRAINT "version_state" CHECK ("state" IN ('DRAFT','READY','DELETE_PENDING','DELETED','ABANDONED'));
+ALTER TABLE "item_versions" ADD CONSTRAINT "ready_has_number" CHECK ("state" NOT IN ('READY','DELETE_PENDING','DELETED') OR "versionNo" IS NOT NULL);
+ALTER TABLE "archive_versions" ADD CONSTRAINT "archive_state" CHECK ("state" IN ('PREPARING','VERIFIED','DELETE_PENDING','DELETED'));
+ALTER TABLE "archive_versions" ADD CONSTRAINT "archive_counts" CHECK ("fileCount" >= 0 AND "totalBytes" >= 0);
+ALTER TABLE "archive_versions" ADD CONSTRAINT "verified_manifest" CHECK ("state" <> 'VERIFIED' OR ("manifestObjectId" IS NOT NULL AND "manifestHash" ~ '^[0-9a-f]{64}$' AND "verifiedAt" IS NOT NULL));
+ALTER TABLE "archive_files" ADD CONSTRAINT "file_checksum" CHECK ("checksum" ~ '^[0-9a-f]{64}$');
+ALTER TABLE "archive_plans" ADD CONSTRAINT "plan_state" CHECK ("state" IN ('REVIEW','READY'));
+ALTER TABLE "archive_plans" ADD CONSTRAINT "plan_summary" CHECK (jsonb_typeof("summary")='object');
+ALTER TABLE "plan_entries" ADD CONSTRAINT "entry_decision" CHECK ("decision" IN ('INCLUDE','EXCLUDE','REVIEW') AND ("resolution" IS NULL OR "resolution" IN ('INCLUDE','EXCLUDE')) AND "action" IN ('ADD','REPLACE','INHERIT','REMOVE') AND "sizeBytes" >= 0);
+ALTER TABLE "preview_derivatives" ADD CONSTRAINT "preview_state" CHECK ("state" IN ('PENDING','READY','UNSUPPORTED','FAILED','DELETE_PENDING','DELETED'));
+ALTER TABLE "preview_derivatives" ADD CONSTRAINT "preview_metadata" CHECK (jsonb_typeof("metadata")='object');
+ALTER TABLE "delete_requests" ADD CONSTRAINT "delete_state" CHECK ("state" IN ('PLANNED','CONFIRMED','DELETING','WAITING_FOR_LEASES','PARTIAL','FAILED','COMPLETED','CANCELLED'));
+ALTER TABLE "delete_requests" ADD CONSTRAINT "delete_scope" CHECK ("scope" IN ('resultAndExclusiveSources','resultOnly'));
+ALTER TABLE "delete_requests" ADD CONSTRAINT "delete_plan_object" CHECK (jsonb_typeof("plan")='object');
+ALTER TABLE "delete_entries" ADD CONSTRAINT "delete_entry_state" CHECK ("state" IN ('PENDING','PURGED','RETAINED','FAILED'));
+ALTER TABLE "restore_validations" ADD CONSTRAINT "validation_state" CHECK ("state" IN ('NOT_TESTED','PASSED','FAILED','ENVIRONMENT_MISSING'));
+ALTER TABLE "restore_validations" ADD CONSTRAINT "validation_environment" CHECK (jsonb_typeof("environment")='object' AND octet_length("environment"::text) <= 65536);
+ALTER TABLE "unreal_archive_profiles" ADD CONSTRAINT "unreal_validation_state" CHECK ("validationStatus" IN ('NOT_TESTED','PASSED','FAILED','ENVIRONMENT_MISSING'));
+ALTER TABLE "unreal_archive_profiles" ADD CONSTRAINT "unreal_environment" CHECK (jsonb_typeof("environment")='object' AND octet_length("environment"::text) <= 65536 AND "schemaVersion" > 0);
+ALTER TABLE "item_links" ADD CONSTRAINT "link_relation" CHECK ("relation" IN ('ASSOCIATED','USED_CONFIRMED') AND ("relation" <> 'USED_CONFIRMED' OR "confirmedBy" IS NOT NULL));
+ALTER TABLE "item_metadata_revisions" ADD CONSTRAINT "revision_snapshot" CHECK (jsonb_typeof("snapshot")='object');
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_detail" CHECK (jsonb_typeof("detail")='object');

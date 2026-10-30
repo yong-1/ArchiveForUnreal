@@ -1,0 +1,21 @@
+import { startLocalDatabase } from './local-db';
+import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { readFile,writeFile,mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { config } from 'dotenv';
+config({path:'.env.local',quiet:true});config({quiet:true});
+const dataRoot=path.resolve(process.env.LOCAL_DATA_ROOT||'.local');
+await mkdir(dataRoot,{recursive:true});
+const secretFile=path.join(dataRoot,'dev-secrets.json');
+let secrets:{auth:string;bootstrap:string};
+try{secrets=JSON.parse(await readFile(secretFile,'utf8'));}catch{secrets={auth:randomBytes(48).toString('hex'),bootstrap:randomBytes(32).toString('hex')};await writeFile(secretFile,JSON.stringify(secrets,null,2),{mode:0o600,flag:'wx'});}
+const local=await startLocalDatabase(Number(process.env.LOCAL_DB_PORT||55432),path.join(dataRoot,'postgres'));
+const configured=process.env.LOCAL_USE_CONFIGURED_STORAGE==='true';
+const env={...process.env,DATABASE_URL:local.url,ARCHIVE_INLINE_WORKER:'1',NEXTAUTH_URL:process.env.NEXTAUTH_URL||'http://localhost:3000',NEXTAUTH_SECRET:process.env.NEXTAUTH_SECRET||secrets.auth,BOOTSTRAP_TOKEN:process.env.BOOTSTRAP_TOKEN||secrets.bootstrap,ARCHIVE_ROOT:configured&&process.env.ARCHIVE_ROOT||path.join(dataRoot,'archive'),STAGING_ROOT:configured&&process.env.STAGING_ROOT||path.join(dataRoot,'staging'),PREVIEW_ROOT:configured&&process.env.PREVIEW_ROOT||path.join(dataRoot,'preview')};
+const next=spawn(process.execPath,['node_modules/next/dist/bin/next','dev','--webpack','--hostname','127.0.0.1'],{env,stdio:'inherit',windowsHide:true});
+console.log('개발용 DB·worker를 시작했습니다. 초기 설정 키 파일: '+secretFile+' (bootstrap 값)');
+console.log('운영 전 PostgreSQL 서버와 NAS 경로를 .env.local에 설정하세요.');
+let stopping=false;
+const stop=async()=>{if(stopping)return;stopping=true;next.kill();await local.close().catch(()=>{});process.exit(0);};
+process.on('SIGINT',stop);process.on('SIGTERM',stop);next.on('exit',stop);

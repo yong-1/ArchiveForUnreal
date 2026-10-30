@@ -10,10 +10,7 @@ const nextConfig = {
       },
     ],
   },
-  env: {
-    DEMO_USER_EMAIL: process.env.DEMO_USER_EMAIL,
-    DEMO_USER_PASSWORD: process.env.DEMO_USER_PASSWORD,
-  },
+  serverExternalPackages: ['@prisma/client', 'archiver', 'sharp', 'ffmpeg-static', 'ffprobe-static'],
   // distDir: 'build',
 };
 

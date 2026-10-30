@@ -1,31 +1,8 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import './archive.css';
 import NextAuthProvider from '@/components/NextAuthProvider';
-import { getServerSession } from 'next-auth';
-
-const inter = Inter({ subsets: ['latin'] });
-
-export const metadata: Metadata = {
-  title: 'NextFlix',
-  description: 'A Netflix clone built with Next.js',
-};
-
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const session = await getServerSession();
-
-  return (
-    <html lang='en'>
-      <body className={inter.className}>
-        <NextAuthProvider session={session}>{children}</NextAuthProvider>
-        <ToastContainer />
-      </body>
-    </html>
-  );
+export const metadata:Metadata={title:'NextFlix Archive · 제작의 기록',description:'제작 결과물과 연결된 제작 원본을 보존하고 다시 활용하는 팀 아카이브'};
+export default function RootLayout({children}:{children:React.ReactNode}){
+ return <html lang="ko"><body><NextAuthProvider>{children}</NextAuthProvider></body></html>;
 }

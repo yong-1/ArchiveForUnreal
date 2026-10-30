@@ -1,247 +1,26 @@
 'use client';
-import BigLoader from '@/components/BigLoader';
-import Input from '@/components/Input';
-import axios from 'axios';
+import { useEffect,useState } from 'react';
 import { signIn } from 'next-auth/react';
-import Image from 'next/image';
-import React, { useCallback } from 'react';
-import { toast } from 'react-toastify';
-import { FcGoogle } from 'react-icons/fc';
-import { BsGithub } from 'react-icons/bs';
 import { useRouter } from 'next/navigation';
-
-enum Variant {
-  login, // 0
-  register, // 1
-}
-
-type Res = {
-  error: string | null;
-  status: number;
-  ok: boolean;
-  url: string | null;
-};
-
-export default function AuthPage() {
-  const emailRef = React.useRef<HTMLInputElement>(null);
-  const passwordRef = React.useRef<HTMLInputElement>(null);
-  const nameRef = React.useRef<HTMLInputElement>(null);
-  const [variant, setVariant] = React.useState<Variant>(Variant.login);
-  const [loading, setLoading] = React.useState<boolean>(false);
-  const router = useRouter();
-
-  const toggleVariant = useCallback(() => {
-    setVariant(variant === Variant.login ? Variant.register : Variant.login);
-  }, [variant]);
-
-  const register = async () => {
-    if (!emailRef.current || !passwordRef.current || !nameRef.current) return;
-    try {
-      setLoading(true);
-      if (
-        !emailRef.current.value ||
-        !passwordRef.current.value ||
-        !nameRef.current.value
-      ) {
-        throw new Error('Missing fields');
-      }
-
-      await axios.post(
-        '/api/auth/register',
-        {
-          email: emailRef.current.value,
-          password: passwordRef.current.value,
-          name: nameRef.current.value,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      toast.success('Account created successfully');
-      emailRef.current.value = '';
-      passwordRef.current.value = '';
-      nameRef.current.value = '';
-      setVariant(Variant.login);
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message === 'Request failed with status code 400'
-      ) {
-        toast.error('Email already exists. Try logging in instead');
-      } else {
-        toast.error('Please fill in all fields and try again');
-      }
-      // console.log(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async () => {
-    try {
-      setLoading(true);
-      if (!emailRef.current || !passwordRef.current) {
-        throw new Error('Missing fields');
-      }
-      const req = await signIn('credentials', {
-        email: emailRef.current.value,
-        password: passwordRef.current.value,
-        redirect: false,
-      });
-      if (req?.error) {
-        throw new Error(req.error);
-      }
-      setLoading(false);
-      return router.push('/profiles');
-    } catch (error) {
-      const { message } = error as Error;
-      setLoading(false);
-      toast.error(message);
-    }
-  };
-
-  const handleGithubSignIn = async () => {
-    try {
-      setLoading(true);
-      const req = await signIn('github', {
-        callbackUrl: '/profiles',
-      });
-      if (req?.error) {
-        throw new Error(req.error);
-      }
-      setLoading(false);
-    } catch (error) {
-      const { message } = error as Error;
-      setLoading(false);
-      toast.error(message);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true);
-      const req = await signIn('google', {
-        callbackUrl: '/profiles',
-      });
-      if (req?.error) {
-        throw new Error(req.error);
-      }
-      setLoading(false);
-    } catch (error) {
-      const { message } = error as Error;
-      setLoading(false);
-      toast.error(message);
-    }
-  };
-
-  return (
-    <>
-      <section className='relative min-h-screen w-full bg-[url("/images/hero.jpg")] bg-no-repeat bg-center bg-fixed bg-cover'>
-        <div className='bg-black w-full min-h-screen bg-opacity-50 '>
-          <nav className='px-8 md:py-2 opacity-100 k'>
-            <Image
-              src='/images/logo.png'
-              alt='Nextflix logo'
-              width='100'
-              height='0'
-              priority
-              className='max-w-[150px] max-h-[60px] md:max-w-[200px] md:max-h-[80px] h-auto w-auto'
-            />
-          </nav>
-          <div className={`flex justify-center px-1 sm:px-6`}>
-            <div className='bg-black bg-opacity-75 px-16 py-8  self-center mt-4 rounded-lg max-w-[550px] w-full'>
-              <h1 className='text-slate-50 text-4xl mb-8 font-semibold'>
-                {variant === 0 ? 'Sign in' : 'Register'}
-              </h1>
-              <div className='flex flex-col gap-8'>
-                {variant === 1 && (
-                  <Input
-                    ref={nameRef}
-                    type='text'
-                    id='name'
-                    label='Name'
-                    automaticComplete='name'
-                  />
-                )}
-
-                <Input
-                  ref={emailRef}
-                  type='email'
-                  id='email'
-                  label='Email'
-                  automaticComplete='email'
-                />
-                <Input
-                  ref={passwordRef}
-                  type='password'
-                  id='password'
-                  label='Password'
-                  automaticComplete='password'
-                />
-                {variant === 0 && (
-                  <>
-                    <button
-                      onClick={login}
-                      className='bg-red-600 text-slate-50 text-lg font-semibold rounded-md py-2 mt-6 hover:bg-red-500 transition-colors duration-150'
-                    >
-                      Login
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        emailRef.current!.value = process.env.DEMO_USER_EMAIL!;
-                        passwordRef.current!.value =
-                          process.env.DEMO_USER_PASSWORD!;
-                        await login();
-                      }}
-                      className='bg-slate-50 text-black text-lg font-semibold rounded-md py-2 mt-6 hover:bg-slate-50/70 transition-colors duration-150'
-                    >
-                      Demo User
-                    </button>
-                  </>
-                )}
-                {variant === 1 && (
-                  <button
-                    onClick={register}
-                    className='bg-red-600 text-slate-50 text-lg font-semibold rounded-md py-2 mt-6 hover:bg-red-500 transition-colors duration-150'
-                  >
-                    Sign up
-                  </button>
-                )}
-              </div>
-              <div className='w-full flex items-center justify-center pt-8 gap-6'>
-                <div
-                  onClick={handleGoogleSignIn}
-                  className='w-10 h-10 bg-white rounded-full flex items-center justify-center cursor-pointer hover:opacity-85 transition-opacity duration-150'
-                >
-                  <FcGoogle size={30} />
-                </div>
-                <div
-                  onClick={handleGithubSignIn}
-                  className='w-10 h-10 bg-white rounded-full flex items-center justify-center cursor-pointer hover:opacity-85 transition-opacity duration-150'
-                >
-                  <BsGithub size={30} />
-                </div>
-              </div>
-              <p className='text-slate-50 mt-4 '>
-                {variant === 0
-                  ? 'First time using NextFlix?'
-                  : 'Already have an account?'}
-                <span
-                  onClick={toggleVariant}
-                  className='ml-1 text-red-500 cursor-pointer hover:underline transition-all duration-150 font-bold'
-                >
-                  {variant === 0 ? 'Create account' : 'Sign in'}
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-      {loading && <BigLoader size={70} />}
-    </>
-  );
+import { api,post } from '@/components/archive/client';
+import { ErrorBox,Icon } from '@/components/archive/ui';
+export default function AuthPage(){
+ const router=useRouter(),[status,setStatus]=useState<{configured:boolean;initialized:boolean}|null>(null),[error,setError]=useState<unknown>(null),[busy,setBusy]=useState(false),[form,setForm]=useState({email:'',password:'',name:'',teamName:'',token:''});
+ const refresh=()=>api<{configured:boolean;initialized:boolean}>('setup').then(setStatus).catch(setError);
+ useEffect(()=>{refresh();},[]);
+ const setup=!!status?.configured&&!status.initialized;
+ const submit=async(e:React.FormEvent)=>{
+  e.preventDefault();setBusy(true);setError(null);
+  try{
+   if(setup)await post('setup',form);
+   const result=await signIn('credentials',{email:form.email,password:form.password,redirect:false});
+   if(result?.error)throw new Error('이메일 또는 비밀번호를 확인하세요.');
+   router.replace('/archive');router.refresh();
+  }catch(error){setError(error);refresh();}finally{setBusy(false);}
+ };
+ return <div className="auth-page"><div className="auth-brand brand"><span className="brand-mark">N</span><span>NEXTFLIX<small>PRODUCTION ARCHIVE</small></span></div><div className="auth-layout"><section className="auth-story"><span className="eyebrow">OUR WORK LIVES ON.</span><h1>한 번의 제작이,<br/><em>다음의 시작으로.</em></h1><p>완성한 영상과 이미지부터<br/>그 안의 아이디어와 제작 소스까지.<br/>우리 팀의 기록을 한곳에 보존하세요.</p><div className="auth-pills"><span><Icon name="film" size={18}/>영상</span><span><Icon name="image" size={18}/>이미지</span><span><Icon name="box" size={18}/>제작 원본</span></div><div className="auth-grid-art"><i/><i/><i/><i/></div></section><section className="auth-panel"><span className="eyebrow">{setup?'WELCOME TO YOUR ARCHIVE':'TEAM WORKSPACE'}</span><h2>{setup?'팀 아카이브 시작하기':'다시 만나 반갑습니다.'}</h2><p>{setup?'첫 관리자 계정과 팀을 등록하세요.':'팀 계정으로 아카이브에 로그인하세요.'}</p><ErrorBox error={error}/>
+  {status&&!status.configured?<div className="notice"><p>데이터베이스 연결을 준비하고 있습니다. 서버 설정을 확인한 뒤 다시 시도하세요.</p><button className="button" onClick={refresh}>연결 다시 확인</button></div>:<form className="stack-form" onSubmit={submit}>
+  {setup&&<><label>초기 설정 키<input type="password" required minLength={32} value={form.token} onChange={e=>setForm({...form,token:e.target.value})} autoComplete="off"/><small>서버 관리자가 준비한 초기 설정 키를 입력하세요.</small></label><div className="form-grid"><label>이름<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})} maxLength={80} autoComplete="name"/></label><label>팀 이름<input required value={form.teamName} onChange={e=>setForm({...form,teamName:e.target.value})} maxLength={100}/></label></div></>}
+  <label>이메일<input type="email" autoComplete="email" placeholder="name@team.com" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>비밀번호<input type="password" autoComplete={setup?'new-password':'current-password'} required minLength={setup?12:undefined} maxLength={128} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label>{setup&&<p className="small-note">비밀번호는 12자 이상으로 설정하세요. 팀원은 초기 설정 후 관리자가 등록할 수 있습니다.</p>}<button className="button primary full-width" disabled={busy||!status}>{busy?'처리 중…':setup?'팀 아카이브 만들기':'로그인'}<Icon name="arrow" size={17}/></button></form>}
+  <div className="auth-footnote"><i className="live-dot"/>우리 팀만을 위한 제작 아카이브</div></section></div><footer className="auth-footer">NEXTFLIX ARCHIVE <span>기록을 연결하고, 제작을 이어갑니다.</span></footer></div>;
 }
